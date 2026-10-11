@@ -1,0 +1,12 @@
+# evironnement virtuel
+venv/
+
+#cache Python
+__pycache__/
+*.pyc
+
+#bases de données SQLite locales et de test
+*.db
+
+#cache des tests automatisés
+.pytest_cache/

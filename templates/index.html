@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Sentinel - Tableau de bord</title>
+<!-- utilisation de Tailwind CSS-->
+ <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen p-6">
+
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">API Sentinel</h1>
+                <p class="text-sm text-slate-500">Surveillance en temps réel de vos endpoints</p>
+            </div>
+            <div class="text-right">
+                <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-full animate-pulse">Système actif</span>
+            </div>
+        </header>
+
+                <!-- formulaire d'ajout d'un endpoint -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+            <h2 class="text-lg font-semibold mb-4 text-slate-700">Ajouter un nouvel endpoint à surveiller</h2>
+            <form id="add-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="name" placeholder="Nom (ex: Mon API)" required class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <input type="url" id="url" placeholder="URL (ex: https://api.example.com/health)" required class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">Ajouter l'endpoint</button>
+            </form>
+        </div>
+
+       <!-- liste des endpoints et leur statut -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+            <div class="p-6 border-b border-slate-100">
+                <h2 class="text-lg font-semibold text-slate-700">Endpoints surveillés</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                            <th class="p-4">Nom</th>
+                            <th class="p-4">URL</th>
+                            <th class="p-4">Statut</th>
+                            <th class="p-4">Code HTTP</th>
+                            <th class="p-4">Temps de réponse</th>
+                            <th class="p-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="endpoints-table" class="divide-y divide-slate-100 text-sm">
+                        <!-- remplissage dynamique par js-->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- script js -->
+    <script>
+        async function loadData() {
+            try {
+                const response = await fetch('/api/endpoints');
+                const endpoints = await response.json();
+                
+                const tableBody = document.getElementById('endpoints-table');
+                tableBody.innerHTML = '';
+
+                if (endpoints.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Aucun endpoint configuré pour le moment.</td></tr>`;
+                    return;
+                }
+
+                for (const ep of endpoints) {
+                    // recuperation du dernier résultat de vérification pour chaque endpoint
+                    const resFetch = await fetch('/api/results');
+                    const results = await resFetch.json();
+                    const lastResult = results.find(r => r.endpoint_id === ep.id);
+
+                    let statusBadge = `<span class="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-medium">En attente...</span>`;
+                    let codeDisplay = `-`;
+                    let timeDisplay = `-`;
+
+                    if (lastResult) {
+                        if (lastResult.is_up) {
+                            statusBadge = `<span class="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">UP</span>`;
+                        } else {
+                            statusBadge = `<span class="px-2 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-bold">DOWN</span>`;
+                        }
+                        codeDisplay = lastResult.status_code || 'Erreur réseau';
+                        timeDisplay = `${lastResult.response_time_ms} ms`;
+                    }
+
+                    const row = `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="p-4 font-medium text-slate-900">${ep.name}</td>
+                            <td class="p-4 text-slate-500 truncate max-w-xs">${ep.url}</td>
+                            <td class="p-4">${statusBadge}</td>
+                            <td class="p-4 font-mono text-xs">${codeDisplay}</td>
+                            <td class="p-4 text-slate-600">${timeDisplay}</td>
+                            <td class="p-4 text-right">
+                                <button onclick="deleteEndpoint(${ep.id})" class="text-rose-500 hover:text-rose-700 text-xs font-medium">Supprimer</button>
+                            </td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                }
+            } catch (err) {
+                console.error("Erreur lors du chargement des données", err);
+            }
+        }
+
+        // gestion de l'ajout d'un nouvel endpoint via le formulaire
+        document.getElementById('add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value;
+            const url = document.getElementById('url').value;
+
+            const response = await fetch('/api/endpoints', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, url })
+            });
+
+            if (response.ok) {
+                document.getElementById('name').value = '';
+                document.getElementById('url').value = '';
+                loadData();
+            } else {
+                alert("Erreur lors de l'ajout de l'endpoint.");
+            }
+        });
+
+        // supprimer un endpoint
+        async function deleteEndpoint(id) {
+            if (confirm("Voulez-vous vraiment supprimer cet endpoint ?")) {
+                await fetch(`/api/endpoints/${id}`, { method: 'DELETE' });
+                loadData();
+            }
+        }
+
+        // charger les données au chargement de la page et toutes les 10 secondes
+        loadData();
+        setInterval(loadData, 10000);
+    </script>
+
+
+</body>
+</html>
