@@ -1,4 +1,4 @@
-# API Sentinel — Surveillance de disponibilité des API
+# API Sentinel : Surveillance de disponibilité des API
 
 **API Sentinel** est une application web légère développée en Python et Flask permettant de surveiller automatiquement la disponibilité d'API HTTP. L'application effectue des contrôles périodiques sur des endpoints configurés, mesure leurs temps de réponse, détecte les erreurs et conserve l'historique des résultats dans une base de données SQLite.
 
@@ -194,7 +194,7 @@ Ce projet met en pratique :
 
 ## Exemple de description CV
 
-**API Sentinel — Surveillance de disponibilité des API**
+**API Sentinel : Surveillance de disponibilité des API**
 
 Développement d'une application Flask permettant de surveiller automatiquement plusieurs endpoints HTTP, de mesurer leurs temps de réponse et de détecter les erreurs de disponibilité.
 
