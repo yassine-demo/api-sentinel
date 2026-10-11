@@ -3,148 +3,389 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Sentinel - Tableau de bord</title>
-<!-- utilisation de Tailwind CSS-->
- <script src="https://cdn.tailwindcss.com"></script>
+    <title>API Sentinel</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen p-6">
+<body class="bg-slate-100 min-h-screen text-slate-800">
 
-    <div class="max-w-5xl mx-auto">
-        <header class="mb-8 flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+<div class="max-w-7xl mx-auto p-6">
+
+    <header class="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <div class="flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold text-slate-900">API Sentinel</h1>
-                <p class="text-sm text-slate-500">Surveillance en temps réel de vos endpoints</p>
+                <h1 class="text-2xl font-bold">API Sentinel</h1>
+                <p class="text-sm text-slate-500">
+                    surveillance des endpoints et suivi des performances
+                </p>
             </div>
-            <div class="text-right">
-                <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-semibold rounded-full animate-pulse">Système actif</span>
-            </div>
-        </header>
 
-                <!-- formulaire d'ajout d'un endpoint -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
-            <h2 class="text-lg font-semibold mb-4 text-slate-700">Ajouter un nouvel endpoint à surveiller</h2>
-            <form id="add-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input type="text" id="name" placeholder="Nom (ex: Mon API)" required class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <input type="url" id="url" placeholder="URL (ex: https://api.example.com/health)" required class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">Ajouter l'endpoint</button>
-            </form>
+            <span class="text-xs text-slate-500">
+                actualisation automatique toutes les 10 secondes
+            </span>
+        </div>
+    </header>
+
+    <div class="grid md:grid-cols-3 gap-4 mb-6">
+
+        <div class="bg-white rounded-xl p-5 shadow-sm border">
+            <p class="text-sm text-slate-500">endpoints</p>
+            <p id="total-endpoints" class="text-2xl font-bold">0</p>
         </div>
 
-       <!-- liste des endpoints et leur statut -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-            <div class="p-6 border-b border-slate-100">
-                <h2 class="text-lg font-semibold text-slate-700">Endpoints surveillés</h2>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
-                            <th class="p-4">Nom</th>
-                            <th class="p-4">URL</th>
-                            <th class="p-4">Statut</th>
-                            <th class="p-4">Code HTTP</th>
-                            <th class="p-4">Temps de réponse</th>
-                            <th class="p-4 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="endpoints-table" class="divide-y divide-slate-100 text-sm">
-                        <!-- remplissage dynamique par js-->
-                    </tbody>
-                </table>
-            </div>
+        <div class="bg-white rounded-xl p-5 shadow-sm border">
+            <p class="text-sm text-slate-500">en ligne</p>
+            <p id="total-up" class="text-2xl font-bold text-green-600">0</p>
         </div>
+
+        <div class="bg-white rounded-xl p-5 shadow-sm border">
+            <p class="text-sm text-slate-500">hors ligne</p>
+            <p id="total-down" class="text-2xl font-bold text-red-600">0</p>
+        </div>
+
     </div>
 
+    <div class="bg-white rounded-xl p-6 shadow-sm border mb-6">
 
-    <!-- script js -->
-    <script>
-        async function loadData() {
-            try {
-                const response = await fetch('/api/endpoints');
-                const endpoints = await response.json();
-                
-                const tableBody = document.getElementById('endpoints-table');
-                tableBody.innerHTML = '';
+        <h2 class="font-semibold mb-4">
+            ajouter un endpoint
+        </h2>
 
-                if (endpoints.length === 0) {
-                    tableBody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400">Aucun endpoint configuré pour le moment.</td></tr>`;
-                    return;
-                }
+        <form id="add-form" class="grid md:grid-cols-4 gap-4">
 
-                for (const ep of endpoints) {
-                    // recuperation du dernier résultat de vérification pour chaque endpoint
-                    const resFetch = await fetch('/api/results');
-                    const results = await resFetch.json();
-                    const lastResult = results.find(r => r.endpoint_id === ep.id);
+            <input
+                id="name"
+                type="text"
+                placeholder="nom"
+                required
+                class="border rounded-lg px-4 py-2"
+            >
 
-                    let statusBadge = `<span class="px-2 py-1 bg-slate-100 text-slate-600 rounded text-xs font-medium">En attente...</span>`;
-                    let codeDisplay = `-`;
-                    let timeDisplay = `-`;
+            <input
+                id="url"
+                type="url"
+                placeholder="https://api.example.com"
+                required
+                class="border rounded-lg px-4 py-2"
+            >
 
-                    if (lastResult) {
-                        if (lastResult.is_up) {
-                            statusBadge = `<span class="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">UP</span>`;
-                        } else {
-                            statusBadge = `<span class="px-2 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-bold">DOWN</span>`;
-                        }
-                        codeDisplay = lastResult.status_code || 'Erreur réseau';
-                        timeDisplay = `${lastResult.response_time_ms} ms`;
-                    }
+            <input
+                id="threshold"
+                type="number"
+                value="1000"
+                class="border rounded-lg px-4 py-2"
+            >
 
-                    const row = `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="p-4 font-medium text-slate-900">${ep.name}</td>
-                            <td class="p-4 text-slate-500 truncate max-w-xs">${ep.url}</td>
-                            <td class="p-4">${statusBadge}</td>
-                            <td class="p-4 font-mono text-xs">${codeDisplay}</td>
-                            <td class="p-4 text-slate-600">${timeDisplay}</td>
-                            <td class="p-4 text-right">
-                                <button onclick="deleteEndpoint(${ep.id})" class="text-rose-500 hover:text-rose-700 text-xs font-medium">Supprimer</button>
-                            </td>
-                        </tr>
-                    `;
-                    tableBody.innerHTML += row;
-                }
-            } catch (err) {
-                console.error("Erreur lors du chargement des données", err);
-            }
+            <button
+                type="submit"
+                class="bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+                ajouter
+            </button>
+
+        </form>
+
+    </div>
+
+    <div class="bg-white rounded-xl p-6 shadow-sm border mb-6">
+
+        <h2 class="font-semibold mb-4">
+            historique des temps de réponse
+        </h2>
+
+        <div class="h-72">
+            <canvas id="latencyChart"></canvas>
+        </div>
+
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+
+        <div class="p-6 border-b">
+            <h2 class="font-semibold">
+                endpoints surveillés
+            </h2>
+        </div>
+
+        <div class="overflow-x-auto">
+
+            <table class="w-full">
+
+                <thead>
+
+                <tr class="bg-slate-50 text-xs uppercase text-slate-500">
+
+                    <th class="p-4 text-left">nom</th>
+                    <th class="p-4 text-left">url</th>
+                    <th class="p-4 text-left">seuil</th>
+                    <th class="p-4 text-left">état</th>
+                    <th class="p-4 text-left">http</th>
+                    <th class="p-4 text-left">temps</th>
+                    <th class="p-4 text-left">dernier contrôle</th>
+                    <th class="p-4 text-right">action</th>
+
+                </tr>
+
+                </thead>
+
+                <tbody id="endpoints-table"></tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+let latencyChart = null;
+
+function getStatusBadge(status) {
+
+    switch(status) {
+
+        case "UP":
+            return '<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">en ligne</span>';
+
+        case "SLOW":
+            return '<span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">lent</span>';
+
+        case "DOWN":
+            return '<span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">hors ligne</span>';
+
+        default:
+            return '<span class="px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-xs">pas encore vérifié</span>';
+    }
+}
+
+async function loadData() {
+
+    try {
+
+        const [epRes, resultRes] = await Promise.all([
+            fetch('/api/endpoints'),
+            fetch('/api/results')
+        ]);
+
+        const endpoints = await epRes.json();
+        const results = await resultRes.json();
+
+        const table = document.getElementById('endpoints-table');
+
+        table.innerHTML = '';
+
+        let upCount = 0;
+        let downCount = 0;
+
+        document.getElementById('total-endpoints').textContent =
+            endpoints.length;
+
+        if (endpoints.length === 0) {
+
+            table.innerHTML = `
+                <tr>
+                    <td colspan="8" class="p-6 text-center text-slate-400">
+                        aucun endpoint enregistré
+                    </td>
+                </tr>
+            `;
+
+            updateChart([]);
+            return;
         }
 
-        // gestion de l'ajout d'un nouvel endpoint via le formulaire
-        document.getElementById('add-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const name = document.getElementById('name').value;
-            const url = document.getElementById('url').value;
+        endpoints.forEach(ep => {
 
-            const response = await fetch('/api/endpoints', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, url })
-            });
+            const lastResult =
+                results.find(r => r.endpoint_id === ep.id);
 
-            if (response.ok) {
-                document.getElementById('name').value = '';
-                document.getElementById('url').value = '';
-                loadData();
-            } else {
-                alert("Erreur lors de l'ajout de l'endpoint.");
+            let status = "WAIT";
+            let code = "-";
+            let responseTime = "-";
+            let timestamp = "-";
+
+            if (lastResult) {
+
+                status = lastResult.status;
+                code = lastResult.status_code ?? "erreur";
+                responseTime =
+                    `${lastResult.response_time_ms} ms`;
+
+                timestamp = lastResult.timestamp;
+
+                if (status === "UP" || status === "SLOW") {
+                    upCount++;
+                } else {
+                    downCount++;
+                }
             }
+
+            table.innerHTML += `
+                <tr class="border-t hover:bg-slate-50">
+
+                    <td class="p-4">${ep.name}</td>
+
+                    <td class="p-4 text-slate-500">
+                        ${ep.url}
+                    </td>
+
+                    <td class="p-4">
+                        ${ep.latency_threshold} ms
+                    </td>
+
+                    <td class="p-4">
+                        ${getStatusBadge(status)}
+                    </td>
+
+                    <td class="p-4">
+                        ${code}
+                    </td>
+
+                    <td class="p-4">
+                        ${responseTime}
+                    </td>
+
+                    <td class="p-4 text-sm text-slate-500">
+                        ${timestamp}
+                    </td>
+
+                    <td class="p-4 text-right">
+                        <button
+                            onclick="deleteEndpoint(${ep.id})"
+                            class="text-red-600 hover:text-red-800">
+                            supprimer
+                        </button>
+                    </td>
+
+                </tr>
+            `;
         });
 
-        // supprimer un endpoint
-        async function deleteEndpoint(id) {
-            if (confirm("Voulez-vous vraiment supprimer cet endpoint ?")) {
-                await fetch(`/api/endpoints/${id}`, { method: 'DELETE' });
-                loadData();
-            }
+        document.getElementById('total-up').textContent = upCount;
+        document.getElementById('total-down').textContent = downCount;
+
+        updateChart(results);
+
+    } catch (error) {
+
+        console.error(error);
+
+    }
+}
+
+function updateChart(results) {
+
+    const ctx =
+        document.getElementById("latencyChart").getContext("2d");
+
+    const data = results.slice(0, 20).reverse();
+
+    const labels =
+        data.map(r => r.timestamp);
+
+    const values =
+        data.map(r => r.response_time_ms);
+
+    if (latencyChart) {
+
+        latencyChart.data.labels = labels;
+        latencyChart.data.datasets[0].data = values;
+        latencyChart.update();
+
+        return;
+    }
+
+    latencyChart = new Chart(ctx, {
+
+        type: "line",
+
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "temps de réponse",
+                data: values,
+                borderColor: "#4f46e5",
+                backgroundColor: "rgba(79,70,229,0.15)",
+                fill: true,
+                tension: 0.3
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
         }
+    });
+}
 
-        // charger les données au chargement de la page et toutes les 10 secondes
+document.getElementById('add-form')
+.addEventListener('submit', async (e) => {
+
+    e.preventDefault();
+
+    const name =
+        document.getElementById('name').value;
+
+    const url =
+        document.getElementById('url').value;
+
+    const latency_threshold =
+        parseInt(document.getElementById('threshold').value) || 1000;
+
+    const response = await fetch('/api/endpoints', {
+
+        method: 'POST',
+
+        headers: {
+            'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+            name,
+            url,
+            latency_threshold
+        })
+    });
+
+    if (response.ok) {
+
+        e.target.reset();
+
+        document.getElementById('threshold').value = 1000;
+
         loadData();
-        setInterval(loadData, 10000);
-    </script>
 
+    } else {
+
+        const error = await response.json();
+
+        alert(error.error);
+
+    }
+});
+
+async function deleteEndpoint(id) {
+
+    if (!confirm('supprimer cet endpoint ?')) {
+        return;
+    }
+
+    await fetch(`/api/endpoints/${id}`, {
+        method: 'DELETE'
+    });
+
+    loadData();
+}
+
+loadData();
+
+setInterval(loadData, 10000);
+
+</script>
 
 </body>
 </html>
